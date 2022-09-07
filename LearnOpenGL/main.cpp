@@ -48,9 +48,10 @@ int main()
 		context.drawBackground(0.2f, 0.2f, 0.2f, 1.0f);
 
 		context.drawRectangle(glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, 1.0f,45.0f, glm::vec3(1.0f, 0.0f, 0.0f), CONTAINER );
-		context.drawRectangle(glm::vec3(0.0f, -1.0f, 0.0f), 1.0f, 0.5f, 45.0f, glm::vec3(0.0f, 1.0f, 0.0f), DEFAULT);
-		context.drawRectangle(glm::vec3(-1.0f, 0.0f, 0.0f), 0.1f, 2.0f, 90.0f, glm::vec3(1.0f, 0.0f, 0.0f), SMILEY);
+		//context.drawRectangle(glm::vec3(0.0f, -1.0f, 0.0f), 1.0f, 0.5f, 45.0f, glm::vec3(0.0f, 1.0f, 0.0f), DEFAULT);
+		//context.drawRectangle(glm::vec3(-1.0f, 0.0f, 0.0f), 0.1f, 2.0f, 90.0f, glm::vec3(1.0f, 0.0f, 0.0f), SMILEY);
 
+		context.drawBox(glm::vec3(0.0f,1.0f, 0.0f),glm::vec3(1.0, 1.0, 1.0), 45.0f, glm::vec3(1.0f,0.0f,0.0f), CONTAINER );
 		//get input and draw buffers to the screen
 		context.GetInput();
 		context.Display();

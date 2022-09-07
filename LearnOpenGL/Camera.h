@@ -83,6 +83,12 @@ public:
     // processes input received from a mouse input system. Expects the offset value in both the x and y direction.
     void ProcessMouseMovement(float xpos, float ypos, GLboolean constrainPitch = true)
     {
+        if (firstMouse) {
+            lastX = xpos;
+            lastY = ypos;
+            firstMouse = false;
+        }
+
         float xOffset = xpos - lastX;
         float yOffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
 
@@ -122,6 +128,7 @@ private:
 
     float lastX = 0.0f;
     float lastY = 0.0f;
+    float firstMouse = true;
 
     // calculates the front vector from the Camera's (updated) Euler Angles
     void updateCameraVectors()

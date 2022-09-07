@@ -61,7 +61,7 @@ static float rectangleVertices[] = {
     -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
 };
 
-static float cubeVertices[] = {
+static float boxVertices[] = {
         -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
          0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
          0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
@@ -141,7 +141,7 @@ private:
 
     GLFWwindow* window;
     std::shared_ptr<Shader> ourShader;
-    unsigned int rectVBO, rectVAO;
+    unsigned int VBO, rectVAO, boxVAO;
 
     //texture map, maps user created enum to texture id
     std::unordered_map<int, unsigned int> textureMap;
@@ -203,12 +203,12 @@ public:
         // ------------------------------------
         ourShader.reset(new Shader("vertex.txt", "fragment.txt"));
 
+        
+        glGenBuffers(1, &VBO);
+        
         glGenVertexArrays(1, &rectVAO);
-        glGenBuffers(1, &rectVBO);
-
         glBindVertexArray(rectVAO);
-
-        glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, sizeof(rectangleVertices), rectangleVertices, GL_STATIC_DRAW);
 
         // position attribute
@@ -217,6 +217,26 @@ public:
         // texture coord attribute
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
+
+        glBindVertexArray(0);//unbind
+
+        glGenVertexArrays(1, &boxVAO);
+        glGenBuffers(1, &VBO);
+
+        glBindVertexArray(boxVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(boxVertices), boxVertices, GL_STATIC_DRAW);
+
+        // position attribute
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        // texture coord attribute
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+
+        glBindVertexArray(0);
+
     }
 
     //-----------------------------------Window Functions------------------------------------------------
@@ -237,7 +257,8 @@ public:
     void cleanUp() 
     {
         glDeleteVertexArrays(1, &rectVAO);
-        glDeleteBuffers(1, &rectVBO);
+        glDeleteBuffers(1, &VBO);
+        glDeleteVertexArrays(1, &boxVAO);
         glfwTerminate();
     }
 
@@ -282,7 +303,6 @@ public:
     void BeginRender() 
     {
         beginRenderCalled = true;
-
 
         // activate shader
         ourShader->use();
@@ -363,8 +383,7 @@ public:
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texId);
-            glBindVertexArray(rectVAO);
-
+           
             // calculate the model matrix for each object and pass it to shader before drawing
             glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
 
@@ -378,7 +397,9 @@ public:
             
             ourShader->setMat4("model", model);
 
+            glBindVertexArray(rectVAO);
             glDrawArrays(GL_TRIANGLES, 0, 6);
+            glBindVertexArray(0);
         }
         else {
             std::cout << "Texture could not be found!" << std::endl; 
@@ -401,9 +422,8 @@ public:
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texId);
-            //glBindVertexArray(boxVAO);
-
-            // calculate the model matrix for each object and pass it to shader before drawing
+            
+            //calculate the model matrix for each object and pass it to shader before drawing
             glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
 
             model = glm::scale(model, dimensions);
@@ -415,7 +435,9 @@ public:
 
             ourShader->setMat4("model", model);
 
+            glBindVertexArray(boxVAO);
             glDrawArrays(GL_TRIANGLES, 0, 36);
+            glBindVertexArray(0);
         }
         else {
             std::cout << "Texture could not be found!" << std::endl;
