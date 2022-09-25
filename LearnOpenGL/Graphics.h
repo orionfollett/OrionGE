@@ -434,19 +434,21 @@ public:
             //calculate the model matrix for each object and pass it to shader before drawing
             glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
 
+            
+
+            model = glm::translate(model, pos);
+            
             model = glm::scale(model, dimensions);
             //model[0][0] = dimensions.x;
             //model[1][1] = dimensions.y;
             //model[2][2] = dimensions.z;
-            
+
 
             //rotate would go here
             if (!(axisOfRotation.x == 0 && axisOfRotation.y == 0 && axisOfRotation.z == 0)) {
                 model = glm::rotate(model, glm::radians(angle), axisOfRotation);
             }
 
-            model = glm::translate(model, pos);
-            
             ourShader->setMat4("model", model);
 
             glBindVertexArray(boxVAO);

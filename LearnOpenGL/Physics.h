@@ -4,6 +4,7 @@
 
 #include "Graphics.h";
 
+//pos is bottom back left
 class Cube {
 public:
 	glm::vec3 pos;
@@ -28,12 +29,146 @@ public:
 		pos.y += vel.y * deltaTime;
 		pos.z += vel.z * deltaTime;
 	}
+};
+
+
+//world coord -> arbitrary values that openGL draws to
+//grid coord -> correspond to indices in array, scaling factor applied to transform to world coords, based on what looks good
+//grid coords make world coords cubes into unit length
+//ex: cube is 0.5 width in world coord, but 1.0 length in grid coords
+class Grid {
+public:
+	//world coordinates * scaleFactor = gridCoordinates
+	float scaleFactor;
+
+	Grid(float scaleFactor = 2.0f) {
+		this->scaleFactor = scaleFactor;
+	}
+
+	//return three indices (x, y, z)
+	glm::vec3 worldToGrid(glm::vec3 worldCoords) {
+		return glm::vec3((int)(worldCoords.x * scaleFactor), (int)(worldCoords.y * scaleFactor), (int)(worldCoords.z * scaleFactor));
+	}
+
+	glm::vec3 gridToWorld(glm::vec3 gridCoords) {
+		return glm::vec3(gridCoords.x / scaleFactor, gridCoords.y / scaleFactor, gridCoords.z / scaleFactor);
+	}
+
+	//fix this to not use a magic numbe rof 0.5f
+	//takes a cube, the world (3d array)
+	template<std::size_t worldSize>
+	static bool CubeVsGrid(Cube c, bool(*world)[worldSize][worldSize]) {
+		//get 8 corners of the cube in tile coordinates
+
+		/*
+		glm::vec3 upFrontLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z + 0.5f));
+		glm::vec3 upFrontRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z + 0.5f));
+		glm::vec3 upBackLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z - 0.5f));
+		glm::vec3 upBackRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z - 0.5f));
+
+		glm::vec3 bottomFrontLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z + 0.5f));
+		glm::vec3 bottomFrontRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z + 0.5f));
+		glm::vec3 bottomBackLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z - 0.5f));
+		glm::vec3 bottomBackRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z - 0.5f));
+		*/
+
+		glm::vec3 bottomBackLeft = c.pos;
+		glm::vec3 bottomBackRight = c.pos + glm::vec3(c.width, 0, 0);
+		glm::vec3 bottomFrontLeft = c.pos + glm::vec3(0, 0, c.width);
+		glm::vec3 bottomFrontRight = c.pos + glm::vec3(c.width, 0, c.width);
+
+		glm::vec3 topBackLeft = c.pos + glm::vec3(0, c.width, 0);
+		glm::vec3 topBackRight = c.pos + glm::vec3(c.width, c.width, 0);
+		glm::vec3 topFrontLeft = c.pos + glm::vec3(0, c.width, c.width);
+		glm::vec3 topFrontRight = c.pos + glm::vec3(c.width, c.width, c.width);
+		
+		//std::cout << std::to_string(topFrontLeft.x) << " " << std::to_string(topFrontLeft.y) << " " << std::to_string(topFrontLeft.z) << std::endl;
+
+		
+		
+		//if a corner is in a tile that is occupied, follow protocol to correct cube position
+		//std::cout << std::to_string(worldSize) << std::endl;
+		//
+		
+		return (Grid::PointVsGrid(topFrontLeft, world) ||
+			Grid::PointVsGrid(topFrontRight, world) ||
+			Grid::PointVsGrid(topBackLeft, world) ||
+			Grid::PointVsGrid(topBackRight, world) ||
+			Grid::PointVsGrid(bottomFrontLeft, world) ||
+			Grid::PointVsGrid(bottomFrontRight, world) ||
+			Grid::PointVsGrid(bottomBackLeft, world) ||
+			Grid::PointVsGrid(bottomBackRight, world)
+			);
+
+		//return true;
+	}
+
+	//accepts a point in grid coordinates
+	template<std::size_t worldSize>
+	static bool PointVsGrid(glm::vec3 point, bool(*world)[worldSize][worldSize]) {
+
+		int x = (int)(point.x);
+		int y = (int)(point.y);
+		int z = (int)(point.z);
+		
+		if (x < worldSize && y < worldSize && z < worldSize &&
+			x >= 0 && y >= 0 && z >= 0) {
+			return world[x][y][z];
+		}
+		return false;
+	}
+
+
+	static void CubeStayInGrid(Cube* c, int worldSize) {	
+		Grid::clamp(&c->pos.x, 0, worldSize - 1);
+		Grid::clamp(&c->pos.y, 0, worldSize - 1);
+		Grid::clamp(&c->pos.z, 0, worldSize - 1);
+	}
+private:
+	static void clamp(float* num, float min, float max) {
+		if (*num < min) {
+			*num = min;
+		}
+		else if (*num > max) {
+			*num = max;
+		}
+	}
+
 
 };
 
 class Physics {
 
 public:
+	//raycast 
+	static bool RayVsCube(glm::vec3 start, glm::vec3 dir, Cube c, float * t) {
+
+		//left bottom back
+		glm::vec3 t_near = (c.pos + glm::vec3(-1*c.width, -1*c.width, -1*c.width)) - start;
+		t_near = { (t_near.x / dir.x), (t_near.y / dir.y), (t_near.z / dir.z) };
+
+		//right top front 
+		glm::vec3 t_far = (c.pos + glm::vec3(c.width, c.width, c.width)) - start;
+		t_far = { (t_far.x / dir.x), (t_far.y / dir.y), (t_far.z / dir.z) };
+
+		float t_min = std::max(std::max(std::min(t_near.x, t_far.x), std::min(t_near.y, t_far.y)), std::min(t_near.z, t_far.z));
+		float t_max = std::min(std::min(std::max(t_near.x, t_far.x), std::max(t_near.y, t_far.y)), std::max(t_near.z, t_far.z));
+
+		//ray intersects behind the start vector
+		if (t_max > 0) {
+			*t = t_max;
+			return false;
+		}
+
+		//no intersection
+		if (t_min > t_max) {
+			return false;
+		}
+
+		*t = t_min;
+		return true;
+	}
+
 	static bool CubeVsCube(Cube c1, Cube c2) {
 		return
 			((c1.pos.x >= c2.pos.x && c1.pos.x <= c2.pos.x + c2.width)
@@ -46,49 +181,7 @@ public:
 				|| (c1.pos.z + c1.width >= c2.pos.z && c1.pos.z + c1.width <= c2.pos.z + c2.width));
 	}
 
-	//takes a cube, the world (3d array)
-	template<std::size_t worldSize>
-	static bool CubeVsWorld(Cube c, bool (* world)[worldSize][worldSize]) {
-		//get 8 corners of the cube in tile coordinates
-		glm::vec3 upFrontLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z + 0.5f));
-		glm::vec3 upFrontRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z + 0.5f));
-		glm::vec3 upBackLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z - 0.5f));
-		glm::vec3 upBackRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z - 0.5f));
-
-		glm::vec3 bottomFrontLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z + 0.5f));
-		glm::vec3 bottomFrontRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z + 0.5f));
-		glm::vec3 bottomBackLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z - 0.5f));
-		glm::vec3 bottomBackRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z - 0.5f));
-		
-		//if a corner is in a tile that is occupied, follow protocol to correct cube position
-		//std::cout << std::to_string(worldSize) << std::endl;
-		//
-		return (Physics::PointVsWorld(upFrontLeft, world) ||
-			Physics::PointVsWorld(upFrontRight, world) ||
-			Physics::PointVsWorld(upBackLeft, world) ||
-			Physics::PointVsWorld(upBackRight, world) ||
-			Physics::PointVsWorld(bottomFrontLeft, world) ||
-			Physics::PointVsWorld(bottomFrontRight, world) ||
-			Physics::PointVsWorld(bottomBackLeft, world) ||
-			Physics::PointVsWorld(bottomBackRight, world)
-			);
-
-		//return true;
-	}
-
-	template<std::size_t worldSize>
-	static bool PointVsWorld(glm::vec3 point, bool(*world)[worldSize][worldSize]) {
-		int x = (int) point.x;
-		int y = (int) point.y;
-		int z = (int) point.z;
-		if (x < worldSize && y < worldSize && z < worldSize &&
-			x >= 0 && y >= 0 && z >= 0) {
-			return world[x][y][z];
-		}
-		return false;
-	}
-
-	/*
+		/*
 	bool RayVsRect(const glm::vec3 & ray_origin, const glm::vec3 & ray_dir, const Cube * target, glm::vec3 & contact_point, glm::vec3 & contact_normal, float& t_hit_near)
 	{
 		contact_normal = { 0,0, 0 };
