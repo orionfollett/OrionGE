@@ -5,6 +5,28 @@ void processInput(Graphics* context, float deltaTime);
 void moveCube(Graphics* context, float deltaTime, Cube * c);
 enum TextureT {CONTAINER, DIRT, DEFAULT, KATE, SPACE};
 
+
+class Ray {
+
+public: 
+	glm::vec3 start;
+	glm::vec3 end;
+
+	Ray(glm::vec3 start_pos, glm::vec3 end_pos, float scale = 2.0f) {
+		start = start_pos;
+		end = end_pos;
+	}
+
+	void DrawRay(Graphics* context, float scaleFactor = 2.0f) {
+		context->drawLine(
+			glm::vec3(start.x / scaleFactor, start.y / scaleFactor, start.z / scaleFactor),
+			glm::vec3(end.x / scaleFactor, end.y / scaleFactor, end.z / scaleFactor)
+		);
+	}
+
+
+};
+
 //pos is bottom back left
 class Block {
 
@@ -52,23 +74,25 @@ int main()
 	//init physics objects
 	Cube c = Cube();
 	Block containerBlock = Block(CONTAINER, c);
-	c.pos = { 0, 3, 1 };
+	c.pos = { 1.7, 4, 2.2 };
 	Block testBlock = Block(DEFAULT, c);
 
+	Ray r = Ray({ 0, 0, 0 }, {1, 1, 1});
+
 	//init world
-	const int worldSize = 5;
+	const int worldSize = 16;
 	
 	//Cube world[worldSize][worldSize][worldSize];
 	bool world[worldSize][worldSize][worldSize];
 	for (int i = 0; i < worldSize; i++) {
 		for (int j = 0; j < worldSize; j++) {
 			for (int k = 0; k < worldSize; k++) {
-				if (i % 2 ==0 && k % 2 == 0 && j % 3== 0) {
+				//if (i % 3 ==0 && k % 3== 0 && j % 3 == 0) {
 					world[i][j][k] = true;
-				}
-				else {
-					world[i][j][k] = false;
-				}
+				//}
+				//else {
+					//world[i][j][k] = false;
+				//}
 			}
 		}
 	}
@@ -76,6 +100,7 @@ int main()
 	// timing
 	float deltaTime = 0.0f;	// time between current frame and last frame
 	float lastFrame = 0.0f;
+	int frameCount = 0;
 	
 	while (!context.windowShouldClose()) {
 
@@ -83,6 +108,10 @@ int main()
 		float currentFrame = context.getTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
+		frameCount++;
+		if (frameCount == 60) {
+			frameCount = 0;
+		}
 
 		//handle input
 		processInput(&context, deltaTime);
@@ -94,13 +123,28 @@ int main()
 
 		//render things into memory
 		context.BeginRender();
-		context.drawBackground(0.0f, 0.0f, 0.0f, 1.0f);
+		context.drawBackground(0.1f, 0.3f, 0.2f, 1.0f);
 
 		//pick what things to draw
 
-		Grid g = Grid();
+		Cube c2 = Cube({ 2, 2, 2 }, {0, 0, 0}, 1);
+		Block b2 = Block(DIRT, c2);
+		b2.DrawBlock(&context);
+		//r.start = testBlock.collisionCube.pos;
+		//r.end = { 0, 0, 0 };
+		r.start = testBlock.collisionCube.pos;
+		r.end = {2.5, 0, 2};
+		r.DrawRay(&context);
 
-		//if (!Grid::PointVsGrid(testBlock.collisionCube.pos, world, g)) {
+		float t = 0.0f;
+
+		glm::vec3 contact_point;
+		glm::vec3 contact_normal;
+
+		if (Physics::RayVsCube(r.start, r.end, b2.collisionCube, testBlock.collisionCube.vel, t, contact_point, contact_normal)) {
+			//std::cout << std::to_string(contact_normal.x) << " " << std::to_string(contact_normal.y) << " " << std::to_string(contact_normal.z) << std::endl;
+		}
+
 		if (!Grid::CubeVsGrid(testBlock.collisionCube, world)) {
 			testBlock.texture = DEFAULT;
 			testBlock.DrawBlock(&context);
@@ -108,6 +152,7 @@ int main()
 		else {
 			testBlock.texture = DIRT;
 			testBlock.DrawBlock(&context);
+			//Physics::ResolveCubeVsCube(testBlock.collisionCube,, { 0, 0, 0 }, {0, 0, 0}, deltaTime, 0.0f);
 		}
 		
 		for (int i = 0; i < worldSize; i++) {
@@ -116,8 +161,6 @@ int main()
 					if (world[i][j][k]) {
 						containerBlock.collisionCube.pos = { i, j , k };
 						containerBlock.DrawBlock(&context);
-						//glm::vec3 pos = { i * .5, j * .5, k * .5 };
-						//context.drawBox(pos, glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), CONTAINER);
 					}
 				}
 			}
@@ -126,6 +169,7 @@ int main()
 		//get input and draw buffers to the screen
 		context.GetInput();
 		context.Display();
+		context.showFPS(deltaTime, frameCount);
 	}
 
 	context.cleanUp();

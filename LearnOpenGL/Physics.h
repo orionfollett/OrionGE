@@ -4,7 +4,7 @@
 
 #include "Graphics.h";
 
-//pos is bottom back left
+//pos is bottom back left, aka minimum point
 class Cube {
 public:
 	glm::vec3 pos;
@@ -58,19 +58,7 @@ public:
 	//takes a cube, the world (3d array)
 	template<std::size_t worldSize>
 	static bool CubeVsGrid(Cube c, bool(*world)[worldSize][worldSize]) {
-		//get 8 corners of the cube in tile coordinates
-
-		/*
-		glm::vec3 upFrontLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z + 0.5f));
-		glm::vec3 upFrontRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z + 0.5f));
-		glm::vec3 upBackLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z - 0.5f));
-		glm::vec3 upBackRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y + 0.5f), (int)(c.pos.z - 0.5f));
-
-		glm::vec3 bottomFrontLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z + 0.5f));
-		glm::vec3 bottomFrontRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z + 0.5f));
-		glm::vec3 bottomBackLeft = glm::vec3((int)(c.pos.x - 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z - 0.5f));
-		glm::vec3 bottomBackRight = glm::vec3((int)(c.pos.x + 0.5f), (int)(c.pos.y - 0.5f), (int)(c.pos.z - 0.5f));
-		*/
+		//get 8 corners of the cube in grid coordinates
 
 		glm::vec3 bottomBackLeft = c.pos;
 		glm::vec3 bottomBackRight = c.pos + glm::vec3(c.width, 0, 0);
@@ -82,13 +70,11 @@ public:
 		glm::vec3 topFrontLeft = c.pos + glm::vec3(0, c.width, c.width);
 		glm::vec3 topFrontRight = c.pos + glm::vec3(c.width, c.width, c.width);
 		
-		//std::cout << std::to_string(topFrontLeft.x) << " " << std::to_string(topFrontLeft.y) << " " << std::to_string(topFrontLeft.z) << std::endl;
-
-		
 		
 		//if a corner is in a tile that is occupied, follow protocol to correct cube position
 		//std::cout << std::to_string(worldSize) << std::endl;
 		//
+
 		
 		return (Grid::PointVsGrid(topFrontLeft, world) ||
 			Grid::PointVsGrid(topFrontRight, world) ||
@@ -99,8 +85,6 @@ public:
 			Grid::PointVsGrid(bottomBackLeft, world) ||
 			Grid::PointVsGrid(bottomBackRight, world)
 			);
-
-		//return true;
 	}
 
 	//accepts a point in grid coordinates
@@ -118,7 +102,7 @@ public:
 		return false;
 	}
 
-
+	//keeps a cube within the confines of the world
 	static void CubeStayInGrid(Cube* c, int worldSize) {	
 		Grid::clamp(&c->pos.x, 0, worldSize - 1);
 		Grid::clamp(&c->pos.y, 0, worldSize - 1);
@@ -141,35 +125,94 @@ class Physics {
 
 public:
 	//raycast 
-	static bool RayVsCube(glm::vec3 start, glm::vec3 dir, Cube c, float * t) {
+	static bool RayVsCube(glm::vec3 start, glm::vec3 dir, Cube c, glm::vec3 vel, float& t, glm::vec3& contact_point, glm::vec3& contact_normal) {
+		contact_normal = { 0, 0, 0 };
+		contact_point = { 0, 0, 0 };
 
 		//left bottom back
-		glm::vec3 t_near = (c.pos + glm::vec3(-1*c.width, -1*c.width, -1*c.width)) - start;
-		t_near = { (t_near.x / dir.x), (t_near.y / dir.y), (t_near.z / dir.z) };
-
+		//glm::vec3 t_near = (c.pos + glm::vec3(-1*c.width, -1*c.width, -1*c.width)) - start;
+		glm::vec3 t_near = c.pos - start;//glm::vec3(start.x*2, start.y*2, start.z*2);
+		glm::vec3 shiftDir = dir - start;
+		t_near = { (t_near.x / (shiftDir.x)), (t_near.y / (shiftDir.y)), (t_near.z / (shiftDir.z)) };
+		
 		//right top front 
 		glm::vec3 t_far = (c.pos + glm::vec3(c.width, c.width, c.width)) - start;
-		t_far = { (t_far.x / dir.x), (t_far.y / dir.y), (t_far.z / dir.z) };
+		t_far = { (t_far.x / (shiftDir.x)), (t_far.y / (shiftDir.y)), (t_far.z / (shiftDir.z)) };
 
-		float t_min = std::max(std::max(std::min(t_near.x, t_far.x), std::min(t_near.y, t_far.y)), std::min(t_near.z, t_far.z));
-		float t_max = std::min(std::min(std::max(t_near.x, t_far.x), std::max(t_near.y, t_far.y)), std::max(t_near.z, t_far.z));
+		if (std::isnan(t_far.y) || std::isnan(t_far.x) || std::isnan(t_far.z)) return false;
+		if (std::isnan(t_near.y) || std::isnan(t_near.x) || std::isnan(t_near.z)) return false;
 
-		//ray intersects behind the start vector
-		if (t_max > 0) {
-			*t = t_max;
+		//make sure the nears and fars are correct
+		if (t_near.x > t_far.x) std::swap(t_near.x, t_far.x);
+		if (t_near.y > t_far.y) std::swap(t_near.y, t_far.y);
+		if (t_near.z > t_far.z) std::swap(t_near.z, t_far.z);
+		
+		/*
+		//early rejection
+		if (t_near.x > t_far.y || t_near.y > t_far.x || t_near.x > t_far.z || t_near.z > t_far.x || t_near.z > t_far.y || t_near.y > t_far.z) 
+		{
+			return false;
+		}*/
+
+		
+		//last axis to hit for near and first axis to hit for far are the t of the hit
+
+		// Closest 'time' will be the first contact
+		float t_hit_near = std::max(std::max(t_near.x, t_near.y), t_near.z);
+
+		// Furthest 'time' is contact on opposite side of target
+		float t_hit_far = std::min(std::min(t_far.x, t_far.y), t_far.z);
+
+		// Reject if ray direction is pointing away from object
+		if (t_hit_far < 0) {
+			t = t_hit_far;
 			return false;
 		}
 
 		//no intersection
-		if (t_min > t_max) {
+		if (t_hit_near > t_hit_far) {
 			return false;
 		}
 
-		*t = t_min;
+		// Contact point of collision from parametric line equation
+		contact_point = start + t_hit_near * dir;
+
+		//whichever axis intersects last is has the collision on it
+		if (t_near.x > t_near.y && t_near.x > t_near.z) {
+			if (vel.x < 0)
+				contact_normal = { 1, 0, 0 };
+			else
+				contact_normal = { -1, 0, 0 };
+		}
+		else if (t_near.y > t_near.x && t_near.y > t_near.z) {
+			if (vel.y < 0)
+				contact_normal = { 0, 1, 0 };
+			else
+				contact_normal = { 0, -1, 0 };
+		}
+		else if (t_near.z > t_near.x && t_near.z > t_near.y) {
+			if (vel.z < 0)
+				contact_normal = { 0, 0, 1 };
+			else
+				contact_normal = { 0, 0, -1 };
+		}
+		
+		t = t_hit_near;
 		return true;
 	}
 
-	static bool CubeVsCube(Cube c1, Cube c2) {
+
+	//takes a dynamic cube and a static cube and corrects the collision between them, assumes the collision is already known
+	static void ResolveCubeVsCube(Cube * dynamic, Cube stat, glm::vec3 contact_point, glm::vec3 contact_normal, float deltaTime, float contact_time) {
+		Cube expanded_target = Cube(stat.pos - glm::vec3(stat.width / 2, stat.width / 2, stat.width / 2), {0, 0, 0}, stat.width * 2);
+
+		if (Physics::RayVsCube(glm::vec3(dynamic->pos.x + dynamic->width / 2, dynamic->pos.y + dynamic->width / 2, dynamic->pos.z + dynamic->width / 2),
+			dynamic->vel * deltaTime, expanded_target, dynamic->vel, contact_time, contact_point, contact_normal)) {
+			dynamic->vel += glm::vec3(std::abs(dynamic->vel.x), std::abs(dynamic->vel.y), std::abs(dynamic->vel.z)) * deltaTime * (1 - contact_time);
+		}
+	}
+
+	static bool CubeVsCubeDetection(Cube c1, Cube c2) {
 		return
 			((c1.pos.x >= c2.pos.x && c1.pos.x <= c2.pos.x + c2.width)
 				|| (c1.pos.x + c1.width >= c2.pos.x && c1.pos.x + c1.width <= c2.pos.x + c2.width))

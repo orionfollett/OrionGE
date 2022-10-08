@@ -142,7 +142,7 @@ private:
 
     GLFWwindow* window;
     std::shared_ptr<Shader> ourShader;
-    unsigned int VBO, rectVAO, boxVAO;
+    unsigned int VBO, rectVAO, boxVAO, lineVAO;
 
     //texture map, maps user created enum to texture id
     std::unordered_map<int, unsigned int> textureMap;
@@ -220,6 +220,8 @@ public:
 
         glBindVertexArray(0);//unbind
 
+
+        //box buffers
         glGenVertexArrays(1, &boxVAO);
         glGenBuffers(1, &VBO);
 
@@ -236,6 +238,12 @@ public:
         glEnableVertexAttribArray(1);
 
         glBindVertexArray(0);
+
+        //line buffers
+        glGenVertexArrays(1, &lineVAO);
+        glGenBuffers(1, &VBO);
+        glBindVertexArray(0);
+
     }
 
     //-----------------------------------Window Functions------------------------------------------------
@@ -258,6 +266,7 @@ public:
         glDeleteVertexArrays(1, &rectVAO);
         glDeleteBuffers(1, &VBO);
         glDeleteVertexArrays(1, &boxVAO);
+        glDeleteVertexArrays(1, &lineVAO);
         glfwTerminate();
     }
 
@@ -460,10 +469,44 @@ public:
         }
     }
 
+    //draw line
+    void drawLine(glm::vec3 start, glm::vec3 end) {
+        glBindVertexArray(lineVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        float lineVertices[] = {start.x, start.y, start.z, end.x, end.y, end.z};
+        glBufferData(GL_ARRAY_BUFFER, sizeof(lineVertices), lineVertices, GL_STATIC_DRAW);
+
+        // position attribute
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        glBindVertexArray(0);
+
+        glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+
+        //model = glm::translate(model, start);
+
+        //model = glm::scale(model, {1, 1, 1});
+        ourShader->setMat4("model", model);
+        glBindVertexArray(lineVAO);
+        glDrawArrays(GL_LINES, 0, 2);
+        glBindVertexArray(0);
+    }
+
 
     //draw model
 
-    //---------------------Collision Detection and Resolution
+    void showFPS(float deltaTime, int frameCount)
+    {
+        if (frameCount == 2) {
+            double fps = int(1 / deltaTime);
+
+            std::stringstream ss;
+            ss << "OrionGE" << " " << " [" << fps << " FPS]";
+
+            glfwSetWindowTitle(window, ss.str().c_str());
+        }
+    }
 };
 
 
