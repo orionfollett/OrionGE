@@ -577,7 +577,7 @@ public:
     //numBoxes -> length of pos array
     //called once before program runs
     void InitFastBoxDraw(glm::vec3* pos, glm::vec3 dimensions, int numBoxes) {
-
+        float start = glfwGetTime();
         if (numBoxes <= 0) {
             return;
         }
@@ -632,6 +632,9 @@ public:
         glVertexAttribDivisor(6, 1);
 
         glBindVertexArray(0);
+        float end = glfwGetTime();
+
+        std::cout << end - start << std::endl;
     }
 
 

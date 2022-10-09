@@ -217,7 +217,7 @@ int main()
 	}
 
 	context.InitFastBoxDraw(fastPos, {1, 1, 1}, Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize);
-
+	//delete fastPos;
 
 	// timing
 	float deltaTime = 0.0f;	// time between current frame and last frame
