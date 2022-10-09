@@ -203,14 +203,11 @@ private:
     //texture map, maps user created enum to texture id
     std::unordered_map<int, unsigned int> textureMap;
 
-    // timing
-    float deltaTime = 0.0f;	// time between current frame and last frame
-    float lastFrame = 0.0f;
-
     unsigned int SCR_WIDTH;
     unsigned int SCR_HEIGHT;
 
     bool beginRenderCalled = false;
+    float lastTime = 0.0f;
 
 public:
 
@@ -405,17 +402,16 @@ public:
         
         // camera/view transformation
         glm::mat4 view = camera.GetViewMatrix();
-
-        // activate shader
-        ourShader->use();
-        ourShader->setMat4("projection", projection);
-        ourShader->setMat4("view", view);
-
         
         instancedShader->use();
         instancedShader->setMat4("projection", projection);
         instancedShader->setMat4("view", view);
         
+        // activate shader
+        ourShader->use();
+        ourShader->setMat4("projection", projection);
+        ourShader->setMat4("view", view);
+
     }
 
     //Draw Background
@@ -577,7 +573,7 @@ public:
 
 
     //------------------------------------------------Optimized Draw Box ---------------------------------------------
-     //*pos -> array of positions for the boxes
+    //*pos -> array of positions for the boxes
     //numBoxes -> length of pos array
     //called once before program runs
     void InitFastBoxDraw(glm::vec3* pos, glm::vec3 dimensions, int numBoxes) {
@@ -587,11 +583,12 @@ public:
         }
 
         glm::mat4* modelMatrices = new glm::mat4[numBoxes];
-        fastBoxVAOs = new unsigned int[numBoxes];
-
+        //fastBoxVAOs = new unsigned int[numBoxes];
+        
+        glGenVertexArrays(1, &fastBoxVAO);
+        
         for (unsigned int i = 0; i < numBoxes; i++) {
-            glGenVertexArrays(1, &fastBoxVAOs[i]);
-            glBindVertexArray(fastBoxVAOs[i]);
+            glBindVertexArray(fastBoxVAO);
 
             glBindBuffer(GL_ARRAY_BUFFER, VBO);
             glBufferData(GL_ARRAY_BUFFER, sizeof(boxVertices), boxVertices, GL_STATIC_DRAW);
@@ -602,10 +599,9 @@ public:
             // texture coord attribute
             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
             glEnableVertexAttribArray(1);
-
+           
             glBindVertexArray(0);
-
-
+            
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, pos[i]);
             modelMatrices[i] = glm::scale(model, dimensions);
@@ -617,26 +613,25 @@ public:
         glBufferData(GL_ARRAY_BUFFER, numBoxes * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
 
 
-        for (unsigned int i = 0; i < numBoxes; i++) {
-            glBindVertexArray(fastBoxVAOs[i]); 
+        // set attribute pointers for matrix (4 times vec4)
+        glBindVertexArray(fastBoxVAO);
 
-            // set attribute pointers for matrix (4 times vec4)
-            glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
-            glEnableVertexAttribArray(3);
-            glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
-            glEnableVertexAttribArray(4);
-            glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
-            glEnableVertexAttribArray(5);
-            glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+        std::size_t vec4Size = sizeof(glm::vec4);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)0);
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(1 * vec4Size));
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(2 * vec4Size));
+        glEnableVertexAttribArray(6);
+        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(3 * vec4Size));
 
-            glVertexAttribDivisor(2, 1);
-            glVertexAttribDivisor(3, 1);
-            glVertexAttribDivisor(4, 1);
-            glVertexAttribDivisor(5, 1);
+        glVertexAttribDivisor(3, 1);
+        glVertexAttribDivisor(4, 1);
+        glVertexAttribDivisor(5, 1);
+        glVertexAttribDivisor(6, 1);
 
-            glBindVertexArray(0);
-        }
+        glBindVertexArray(0);
     }
 
 
@@ -644,22 +639,26 @@ public:
 
     }
 
-    void drawFastBox(int numBoxes) {
+    void drawFastBox(int numBoxes, int textureEnum) {
         instancedShader->use();
-        unsigned int texId = textureMap[0];
+        if (textureMap.find(textureEnum) != textureMap.end()) {
+            instancedShader->use();
+            unsigned int texId = textureMap[textureEnum];
 
-        instancedShader->setInt("texture1", 0);
+            instancedShader->setInt("texture1", 0);
 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texId);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texId);
 
-
-        for (unsigned int i = 0; i < numBoxes; i++) {
-            glBindVertexArray(fastBoxVAOs[i]);
+            glBindVertexArray(fastBoxVAO);
             glDrawArraysInstanced(GL_TRIANGLES, 0, 36, numBoxes);
-            //glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, numBoxes);
             glBindVertexArray(0);
         }
+        else {
+            std::cout << "Texture could not be found!" << std::endl;
+        }
+
+        ourShader->use();
     }
 
     //Faces guide
@@ -704,11 +703,12 @@ public:
         }
     }
 
-    void showFPS(float deltaTime, float currentTime)
+    //deltaTime is the time it took this frame to render
+    void showFPS(float deltaTime)
     {
-        if (int(currentTime) % 2 == 0) {
-
-
+        float currentTime = glfwGetTime();
+        if (currentTime > lastTime + 0.5f) {
+            lastTime = currentTime;
             double fps = int(1 / deltaTime);
             std::stringstream ss;
             ss << "OrionGE" << " " << " [" << fps << " FPS]";

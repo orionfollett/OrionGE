@@ -73,7 +73,7 @@ public:
 
 class Chunk {
 public:
-	static const int chunkSize = 16;
+	static const int chunkSize = 40;
 	static enum FaceT {FRONT, BACK, LEFT, RIGHT, BOTTOM, TOP}; //ORDER OF THIS ENUM MATTERS!!! RELATED TO THE INDEX OF FACES IN DRAW BOX FAST
 	//Faces guide
 	//0 -> front
@@ -98,7 +98,7 @@ public:
 	}
 
 	void DrawChunk(Graphics* context, Block model) {
-		context->drawFastBox(Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize);
+		context->drawFastBox(Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize, CONTAINER);
 		return;
 
 		for (int i = 0; i < chunkSize; i++) {
@@ -178,6 +178,7 @@ int main()
 
 	Ray r = Ray({ 0, 0, 0 }, {1, 1, 1});
 
+	/*
 	//init world
 	const int worldSize = 16;
 	
@@ -195,7 +196,7 @@ int main()
 			}
 		}
 	}
-
+	*/
 	glm::vec3 fastPos[Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize];
 	//init chunk for testing
 	Chunk testChunk = Chunk({0, -5, -2});
@@ -252,7 +253,7 @@ int main()
 		//get input and draw buffers to the screen
 		context.GetInput();
 		context.Display();
-		context.showFPS(deltaTime, currentFrame);
+		context.showFPS(deltaTime);
 	}
 
 	context.cleanUp();
