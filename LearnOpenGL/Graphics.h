@@ -194,8 +194,11 @@ private:
 
     GLFWwindow* window;
     std::shared_ptr<Shader> ourShader;
-    unsigned int VBO, rectVAO, boxVAO, lineVAO;
+    std::shared_ptr<Shader> instancedShader;
+
+    unsigned int VBO, rectVAO, boxVAO, lineVAO, fastBoxVAO, fastBoxBuffer;
     unsigned int facesVAO[6];
+    unsigned int * fastBoxVAOs;
 
     //texture map, maps user created enum to texture id
     std::unordered_map<int, unsigned int> textureMap;
@@ -256,6 +259,7 @@ public:
         // build and compile our shader zprogram
         // ------------------------------------
         ourShader.reset(new Shader("vertex.txt", "fragment.txt"));
+        instancedShader.reset(new Shader("vertexInstanced.txt", "fragment.txt"));
 
         //rect buffers
         glGenBuffers(1, &VBO);
@@ -276,8 +280,6 @@ public:
 
 
         //faces
-        
-
         for (int i = 0; i < 6; i++) {
             glGenBuffers(1, &VBO);
             glGenVertexArrays(1, &facesVAO[i]);
@@ -318,9 +320,8 @@ public:
         glGenVertexArrays(1, &lineVAO);
         glGenBuffers(1, &VBO);
         glBindVertexArray(0);
-
     }
-    
+
     //-----------------------------------Window Functions------------------------------------------------
 
     //checks if the window X button has been clicked
@@ -393,9 +394,6 @@ public:
     {
         beginRenderCalled = true;
 
-        // activate shader
-        ourShader->use();
-
         //global variable activated by static mouse callback
         if (isMouseMoved) {
             camera.ProcessMouseMovement(mousePosX, mousePosY);
@@ -404,11 +402,20 @@ public:
 
         // pass projection matrix to shader (note that in this case it could change every frame)
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-        ourShader->setMat4("projection", projection);
-
+        
         // camera/view transformation
         glm::mat4 view = camera.GetViewMatrix();
+
+        // activate shader
+        ourShader->use();
+        ourShader->setMat4("projection", projection);
         ourShader->setMat4("view", view);
+
+        
+        instancedShader->use();
+        instancedShader->setMat4("projection", projection);
+        instancedShader->setMat4("view", view);
+        
     }
 
     //Draw Background
@@ -569,6 +576,92 @@ public:
     }
 
 
+    //------------------------------------------------Optimized Draw Box ---------------------------------------------
+     //*pos -> array of positions for the boxes
+    //numBoxes -> length of pos array
+    //called once before program runs
+    void InitFastBoxDraw(glm::vec3* pos, glm::vec3 dimensions, int numBoxes) {
+
+        if (numBoxes <= 0) {
+            return;
+        }
+
+        glm::mat4* modelMatrices = new glm::mat4[numBoxes];
+        fastBoxVAOs = new unsigned int[numBoxes];
+
+        for (unsigned int i = 0; i < numBoxes; i++) {
+            glGenVertexArrays(1, &fastBoxVAOs[i]);
+            glBindVertexArray(fastBoxVAOs[i]);
+
+            glBindBuffer(GL_ARRAY_BUFFER, VBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(boxVertices), boxVertices, GL_STATIC_DRAW);
+
+            // position attribute
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+            // texture coord attribute
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+            glEnableVertexAttribArray(1);
+
+            glBindVertexArray(0);
+
+
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, pos[i]);
+            modelMatrices[i] = glm::scale(model, dimensions);
+        }
+
+        
+        glGenBuffers(1, &fastBoxBuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, fastBoxBuffer);
+        glBufferData(GL_ARRAY_BUFFER, numBoxes * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
+
+
+        for (unsigned int i = 0; i < numBoxes; i++) {
+            glBindVertexArray(fastBoxVAOs[i]); 
+
+            // set attribute pointers for matrix (4 times vec4)
+            glEnableVertexAttribArray(2);
+            glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
+            glEnableVertexAttribArray(3);
+            glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
+            glEnableVertexAttribArray(4);
+            glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
+            glEnableVertexAttribArray(5);
+            glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+
+            glVertexAttribDivisor(2, 1);
+            glVertexAttribDivisor(3, 1);
+            glVertexAttribDivisor(4, 1);
+            glVertexAttribDivisor(5, 1);
+
+            glBindVertexArray(0);
+        }
+    }
+
+
+    void modifyDrawBoxFastBuffer() {
+
+    }
+
+    void drawFastBox(int numBoxes) {
+        instancedShader->use();
+        unsigned int texId = textureMap[0];
+
+        instancedShader->setInt("texture1", 0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texId);
+
+
+        for (unsigned int i = 0; i < numBoxes; i++) {
+            glBindVertexArray(fastBoxVAOs[i]);
+            glDrawArraysInstanced(GL_TRIANGLES, 0, 36, numBoxes);
+            //glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, numBoxes);
+            glBindVertexArray(0);
+        }
+    }
+
     //Faces guide
     //0 -> front
     //1 -> back
@@ -577,8 +670,8 @@ public:
     //4 -> bottom
     //5 -> top
 
-    //draw box fast
-    void drawBoxFast(glm::vec3 pos, glm::vec3 dimensions, int textureEnum, bool faces[6]) {
+    //draw Partial Box
+    void drawPartialBox(glm::vec3 pos, glm::vec3 dimensions, int textureEnum, bool faces[6]) {
         if (textureMap.find(textureEnum) != textureMap.end()) {
             unsigned int texId = textureMap[textureEnum];
 

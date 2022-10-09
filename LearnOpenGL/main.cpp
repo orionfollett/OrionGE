@@ -52,25 +52,18 @@ public:
 		float w = collisionCube.width / scaleFactor;
 
 		//slower one, not really slower at the moment
-		/*
+		
 		context->drawBox(
 			glm::vec3(collisionCube.pos.x / scaleFactor, collisionCube.pos.y / scaleFactor, collisionCube.pos.z / scaleFactor),
 			glm::vec3(w, w, w),
 			0.0f,
 			glm::vec3(1.0f, 0.0f, 0.0f),
-			texture);*/
-		
-			bool faces[6] = {true, true, true, true, true, true};
-			context->drawBoxFast(
-				glm::vec3(collisionCube.pos.x / scaleFactor, collisionCube.pos.y / scaleFactor, collisionCube.pos.z / scaleFactor),
-				glm::vec3(w, w, w),
-				texture,
-				faces);
+			texture);
 	}
 
 	void DrawPartialBlock(Graphics* context, bool faces[6], float scaleFactor = 2.0f) {
 		float w = collisionCube.width / scaleFactor;
-		context->drawBoxFast(
+		context->drawPartialBox(
 			glm::vec3(collisionCube.pos.x / scaleFactor, collisionCube.pos.y / scaleFactor, collisionCube.pos.z / scaleFactor),
 			glm::vec3(w, w, w),
 			texture,
@@ -105,6 +98,9 @@ public:
 	}
 
 	void DrawChunk(Graphics* context, Block model) {
+		context->drawFastBox(Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize);
+		return;
+
 		for (int i = 0; i < chunkSize; i++) {
 			for (int j = 0; j < chunkSize; j++) {
 				for (int k = 0; k < chunkSize; k++) {
@@ -200,33 +196,26 @@ int main()
 		}
 	}
 
-	int count = 0;
-	int count2 = 0;
-	int count3 = 0;
+	glm::vec3 fastPos[Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize];
 	//init chunk for testing
 	Chunk testChunk = Chunk({0, -5, -2});
 	for (int i = 0; i < Chunk::chunkSize; i++) {
 		for (int j = 0; j < Chunk::chunkSize; j++) {
 			for (int k = 0; k < Chunk::chunkSize; k++) {
-				if (i % 3 ==0 && k % 3== 0 && j % 3 == 0) {
-					testChunk.chunk[i][j][k] = true;
-					count++;
+				if (i == 8 && j == 8) {
+					testChunk.chunk[i][j][k] = false;
+				}
+				else if (k == 4 && j == 8) {
+					testChunk.chunk[i][j][k] = false;
 				}
 				else {
-					//testChunk.chunk[i][j][k] = false;
+					fastPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = {i, j, k};
 				}
-				if (i == 0 || j == 0 || k == 0 || i == Chunk::chunkSize - 1 || j == Chunk::chunkSize - 1 || k == Chunk::chunkSize - 1) {
-					
-					count2++;
-				}
-				count3++;
 			}
 		}
 	}
-	std::cout << "SPARSE COUNT FACES DRAWN: " << count*6 << std::endl;
-	std::cout << "FULL COUNT FACES DRAWN: " << count2 << std::endl;
-	std::cout << "SPARSE COUNT BOXES: " << count << std::endl;
-	std::cout << "FULL COUNT BOXES: " << count3 << std::endl;
+
+	context.InitFastBoxDraw(fastPos, {1, 1, 1}, Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize);
 
 
 	// timing
