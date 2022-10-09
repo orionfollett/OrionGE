@@ -106,6 +106,58 @@ static float boxVertices[] = {
         -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 };
 
+static float cubeFaces[6][30] = 
+{ 
+    {
+        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+    }, 
+{
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+        },
+    {
+        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        },
+    {
+         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+         },
+    {
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        },
+    {
+        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+    }
+};
+
 //Mouse Global Variables
 static float mousePosX;
 static float mousePosY;
@@ -143,6 +195,7 @@ private:
     GLFWwindow* window;
     std::shared_ptr<Shader> ourShader;
     unsigned int VBO, rectVAO, boxVAO, lineVAO;
+    unsigned int facesVAO[6];
 
     //texture map, maps user created enum to texture id
     std::unordered_map<int, unsigned int> textureMap;
@@ -204,8 +257,9 @@ public:
         // ------------------------------------
         ourShader.reset(new Shader("vertex.txt", "fragment.txt"));
 
+        //rect buffers
         glGenBuffers(1, &VBO);
-        
+      
         glGenVertexArrays(1, &rectVAO);
         glBindVertexArray(rectVAO);
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -220,6 +274,27 @@ public:
 
         glBindVertexArray(0);//unbind
 
+
+        //faces
+        
+
+        for (int i = 0; i < 6; i++) {
+            glGenBuffers(1, &VBO);
+            glGenVertexArrays(1, &facesVAO[i]);
+            glBindVertexArray(facesVAO[i]);
+            glBindBuffer(GL_ARRAY_BUFFER, VBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(cubeFaces[i]), cubeFaces[i], GL_STATIC_DRAW);
+
+            // position attribute
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+            // texture coord attribute
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+            glEnableVertexAttribArray(1);
+
+            glBindVertexArray(0);//unbind
+        }
+        
 
         //box buffers
         glGenVertexArrays(1, &boxVAO);
@@ -245,7 +320,7 @@ public:
         glBindVertexArray(0);
 
     }
-
+    
     //-----------------------------------Window Functions------------------------------------------------
 
     //checks if the window X button has been clicked
@@ -494,13 +569,54 @@ public:
     }
 
 
-    //draw model
+    //Faces guide
+    //0 -> front
+    //1 -> back
+    //2 -> left
+    //3 -> right
+    //4 -> bottom
+    //5 -> top
 
-    void showFPS(float deltaTime, int frameCount)
+    //draw box fast
+    void drawBoxFast(glm::vec3 pos, glm::vec3 dimensions, int textureEnum, bool faces[6]) {
+        if (textureMap.find(textureEnum) != textureMap.end()) {
+            unsigned int texId = textureMap[textureEnum];
+
+            ourShader->setInt("texture1", 0);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texId);
+
+            
+            //calculate the model matrix for each object and pass it to shader before drawing
+            glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+
+            model = glm::translate(model, pos);
+            model = glm::scale(model, dimensions);
+            ourShader->setMat4("model", model);
+
+
+            //add only vertices that the faces says too
+            for(int i = 0; i < 6; i++)
+            {
+                if (faces[i]) {
+                    glBindVertexArray(facesVAO[i]);
+                    glDrawArrays(GL_TRIANGLES, 0, 6);
+                    glBindVertexArray(0);
+                }
+            }
+        }
+        else {
+            std::cout << "Texture could not be found!" << std::endl;
+        }
+    }
+
+    void showFPS(float deltaTime, float currentTime)
     {
-        if (frameCount == 2) {
-            double fps = int(1 / deltaTime);
+        if (int(currentTime) % 2 == 0) {
 
+
+            double fps = int(1 / deltaTime);
             std::stringstream ss;
             ss << "OrionGE" << " " << " [" << fps << " FPS]";
 

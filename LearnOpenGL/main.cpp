@@ -51,12 +51,115 @@ public:
 	void DrawBlock(Graphics* context, float scaleFactor = 2.0f) {
 		float w = collisionCube.width / scaleFactor;
 
+		//slower one, not really slower at the moment
+		/*
 		context->drawBox(
 			glm::vec3(collisionCube.pos.x / scaleFactor, collisionCube.pos.y / scaleFactor, collisionCube.pos.z / scaleFactor),
-			glm::vec3(w, w, w), 
-			0.0f, 
-			glm::vec3(1.0f, 0.0f, 0.0f), 
-			texture);
+			glm::vec3(w, w, w),
+			0.0f,
+			glm::vec3(1.0f, 0.0f, 0.0f),
+			texture);*/
+		
+			bool faces[6] = {true, true, true, true, true, true};
+			context->drawBoxFast(
+				glm::vec3(collisionCube.pos.x / scaleFactor, collisionCube.pos.y / scaleFactor, collisionCube.pos.z / scaleFactor),
+				glm::vec3(w, w, w),
+				texture,
+				faces);
+	}
+
+	void DrawPartialBlock(Graphics* context, bool faces[6], float scaleFactor = 2.0f) {
+		float w = collisionCube.width / scaleFactor;
+		context->drawBoxFast(
+			glm::vec3(collisionCube.pos.x / scaleFactor, collisionCube.pos.y / scaleFactor, collisionCube.pos.z / scaleFactor),
+			glm::vec3(w, w, w),
+			texture,
+			faces);
+	}
+};
+
+class Chunk {
+public:
+	static const int chunkSize = 16;
+	static enum FaceT {FRONT, BACK, LEFT, RIGHT, BOTTOM, TOP}; //ORDER OF THIS ENUM MATTERS!!! RELATED TO THE INDEX OF FACES IN DRAW BOX FAST
+	//Faces guide
+	//0 -> front
+	//1 -> back
+	//2 -> left
+	//3 -> right
+	//4 -> bottom
+	//5 -> top
+
+	bool chunk[chunkSize][chunkSize][chunkSize];
+	glm::vec3 pos;
+
+	Chunk(glm::vec3 pos) {
+		this->pos = pos;
+		for (int i = 0; i < chunkSize; i++) {
+			for (int j = 0; j < chunkSize; j++) {
+				for (int k = 0; k < chunkSize; k++) {
+					chunk[i][j][k] = true;
+				}
+			}
+		}
+	}
+
+	void DrawChunk(Graphics* context, Block model) {
+		for (int i = 0; i < chunkSize; i++) {
+			for (int j = 0; j < chunkSize; j++) {
+				for (int k = 0; k < chunkSize; k++) {
+					if (chunk[i][j][k]) {
+						bool faces[6] = { false, false, false, false, false, false };
+
+						//LEFT AND RIGHT
+						if (i == 0) {
+							faces[LEFT] = true;
+							faces[RIGHT] = !chunk[i + 1][j][k];
+						}
+						else if(i == chunkSize - 1) {
+							faces[RIGHT] = true;
+							faces[LEFT] = !chunk[i - 1][j][k];
+						}
+						else {
+							faces[LEFT] = !chunk[i - 1][j][k];
+							faces[RIGHT] = !chunk[i + 1][j][k];
+						}
+
+						//TOP AND BOTTOM
+						if (j == 0) {
+							faces[TOP] = !chunk[i][j + 1][k];
+							faces[BOTTOM] = true;
+						}
+						else if (j == chunkSize - 1) {
+							faces[TOP] = true;
+							faces[BOTTOM] = !chunk[i][j - 1][k];
+						}
+						else {
+							faces[TOP] = !chunk[i][j + 1][k];
+							faces[BOTTOM] = !chunk[i][j - 1][k];
+						}
+
+						
+						//FRONT AND BACK
+						if (k == 0) {
+							faces[FRONT] = true;
+							faces[BACK] = !chunk[i][j][k + 1];
+						}
+						else if (k == chunkSize - 1) {
+							faces[FRONT] = !chunk[i][j][k - 1];
+							faces[BACK] = true;
+						}
+						else {
+							faces[FRONT] = !chunk[i][j][k - 1];
+							faces[BACK] = !chunk[i][j][k + 1];
+						}
+
+						model.collisionCube.pos = glm::vec3(i, j, k) + this->pos;
+						model.DrawPartialBlock(context, faces);
+					}
+				}
+			}
+		}
 	}
 };
 
@@ -82,8 +185,8 @@ int main()
 	//init world
 	const int worldSize = 16;
 	
-	//Cube world[worldSize][worldSize][worldSize];
 	bool world[worldSize][worldSize][worldSize];
+
 	for (int i = 0; i < worldSize; i++) {
 		for (int j = 0; j < worldSize; j++) {
 			for (int k = 0; k < worldSize; k++) {
@@ -97,10 +200,38 @@ int main()
 		}
 	}
 
+	int count = 0;
+	int count2 = 0;
+	int count3 = 0;
+	//init chunk for testing
+	Chunk testChunk = Chunk({0, -5, -2});
+	for (int i = 0; i < Chunk::chunkSize; i++) {
+		for (int j = 0; j < Chunk::chunkSize; j++) {
+			for (int k = 0; k < Chunk::chunkSize; k++) {
+				if (i % 3 ==0 && k % 3== 0 && j % 3 == 0) {
+					testChunk.chunk[i][j][k] = true;
+					count++;
+				}
+				else {
+					//testChunk.chunk[i][j][k] = false;
+				}
+				if (i == 0 || j == 0 || k == 0 || i == Chunk::chunkSize - 1 || j == Chunk::chunkSize - 1 || k == Chunk::chunkSize - 1) {
+					
+					count2++;
+				}
+				count3++;
+			}
+		}
+	}
+	std::cout << "SPARSE COUNT FACES DRAWN: " << count*6 << std::endl;
+	std::cout << "FULL COUNT FACES DRAWN: " << count2 << std::endl;
+	std::cout << "SPARSE COUNT BOXES: " << count << std::endl;
+	std::cout << "FULL COUNT BOXES: " << count3 << std::endl;
+
+
 	// timing
 	float deltaTime = 0.0f;	// time between current frame and last frame
 	float lastFrame = 0.0f;
-	int frameCount = 0;
 	
 	while (!context.windowShouldClose()) {
 
@@ -108,68 +239,31 @@ int main()
 		float currentFrame = context.getTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
-		frameCount++;
-		if (frameCount == 60) {
-			frameCount = 0;
-		}
 
 		//handle input
 		processInput(&context, deltaTime);
-		moveCube(&context, deltaTime, &testBlock.collisionCube);
+		//moveCube(&context, deltaTime, &testBlock.collisionCube);
 
 		//do physics things
-		testBlock.collisionCube.applyVelocity(deltaTime);
-		Grid::CubeStayInGrid(&testBlock.collisionCube, worldSize);
+		//testBlock.collisionCube.applyVelocity(deltaTime);
+		//Grid::CubeStayInGrid(&testBlock.collisionCube, worldSize);
 
 		//render things into memory
 		context.BeginRender();
 		context.drawBackground(0.1f, 0.3f, 0.2f, 1.0f);
 
 		//pick what things to draw
-
-		Cube c2 = Cube({ 2, 2, 2 }, {0, 0, 0}, 1);
-		Block b2 = Block(DIRT, c2);
-		b2.DrawBlock(&context);
-		//r.start = testBlock.collisionCube.pos;
-		//r.end = { 0, 0, 0 };
-		r.start = testBlock.collisionCube.pos;
-		r.end = {2.5, 0, 2};
-		r.DrawRay(&context);
-
-		float t = 0.0f;
-
-		glm::vec3 contact_point;
-		glm::vec3 contact_normal;
-
-		if (Physics::RayVsCube(r.start, r.end, b2.collisionCube, testBlock.collisionCube.vel, t, contact_point, contact_normal)) {
-			//std::cout << std::to_string(contact_normal.x) << " " << std::to_string(contact_normal.y) << " " << std::to_string(contact_normal.z) << std::endl;
-		}
-
-		if (!Grid::CubeVsGrid(testBlock.collisionCube, world)) {
-			testBlock.texture = DEFAULT;
-			testBlock.DrawBlock(&context);
-		}
-		else {
-			testBlock.texture = DIRT;
-			testBlock.DrawBlock(&context);
-			//Physics::ResolveCubeVsCube(testBlock.collisionCube,, { 0, 0, 0 }, {0, 0, 0}, deltaTime, 0.0f);
-		}
 		
-		for (int i = 0; i < worldSize; i++) {
-			for (int j = 0; j < worldSize; j++) {
-				for (int k = 0; k < worldSize; k++) {
-					if (world[i][j][k]) {
-						containerBlock.collisionCube.pos = { i, j , k };
-						containerBlock.DrawBlock(&context);
-					}
-				}
-			}
-		}
+		testChunk.DrawChunk(&context, containerBlock);
+
+
+		//containerBlock.collisionCube.pos = { 0, 0, 0 };
+		//containerBlock.DrawBlock(&context);
 
 		//get input and draw buffers to the screen
 		context.GetInput();
 		context.Display();
-		context.showFPS(deltaTime, frameCount);
+		context.showFPS(deltaTime, currentFrame);
 	}
 
 	context.cleanUp();
@@ -231,3 +325,45 @@ void processInput(Graphics* context, float deltaTime) {
 		context->camera.MovementSpeed = 2.5f;
 	}
 }
+
+
+/*
+Cube c2 = Cube({ 2, 2, 2 }, {0, 0, 0}, 1);
+		Block b2 = Block(DIRT, c2);
+		b2.DrawBlock(&context);
+
+		r.start = testBlock.collisionCube.pos;
+		r.end = {2.5, 0, 2};
+		r.DrawRay(&context);
+
+		float t = 0.0f;
+
+		glm::vec3 contact_point;
+		glm::vec3 contact_normal;
+
+		if (Physics::RayVsCube(r.start, r.end, b2.collisionCube, testBlock.collisionCube.vel, t, contact_point, contact_normal)) {
+			//std::cout << std::to_string(contact_normal.x) << " " << std::to_string(contact_normal.y) << " " << std::to_string(contact_normal.z) << std::endl;
+		}
+
+		if (!Grid::CubeVsGrid(testBlock.collisionCube, world)) {
+			testBlock.texture = DEFAULT;
+			testBlock.DrawBlock(&context);
+		}
+		else {
+			testBlock.texture = DIRT;
+			testBlock.DrawBlock(&context);
+			//Physics::ResolveCubeVsCube(testBlock.collisionCube,, { 0, 0, 0 }, {0, 0, 0}, deltaTime, 0.0f);
+		}
+
+		/*
+		for (int i = 0; i < worldSize; i++) {
+			for (int j = 0; j < worldSize; j++) {
+				for (int k = 0; k < worldSize; k++) {
+					if (world[i][j][k]) {
+						containerBlock.collisionCube.pos = { i, j , k };
+						containerBlock.DrawBlock(&context);
+					}
+				}
+			}
+		}*/
+
