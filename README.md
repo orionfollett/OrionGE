@@ -1,9 +1,9 @@
 # OrionGE
 
-Required Dependencies:
-glad
-glfw
-glm
+### Required Dependencies:
+1. glad for OpenGL function definitions
+2. glfw for window management
+3. glm for optimized vector and matrix math functions
 
 This project is built on Windows and is not cross platform.
 
@@ -29,5 +29,17 @@ to understand if you just read the code, and don't overwhelm you with options. <
 #  Main Useful Header Files
 
 ##  Graphics.h 
+<p>This is the meat of the application. It includes setting up a window, loading textures, drawing rectangles, boxes, and lines.
+   It also provides access to a Camera object for 3D movement around a scene.
+   Since this header file has all of the window functions, it also provides a user input callback for keyboard and mouse.
+</p>
 ##  Physics.h 
+<p>
+This library has collision detection and resolution code for AABBs and Rays.
+(Resolution is still a work in progress)
+</p>
+
 ##  Camera.h 
+<p>
+Should be accessed through the graphics header file but provides a camera to move around the scene.
+</p>
