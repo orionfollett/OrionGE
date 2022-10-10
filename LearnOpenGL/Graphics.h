@@ -577,41 +577,43 @@ public:
     //numBoxes -> length of pos array
     //called once before program runs
     void InitFastBoxDraw(glm::vec3* pos, glm::vec3 dimensions, int numBoxes) {
-        float start = glfwGetTime();
+       
         if (numBoxes <= 0) {
             return;
         }
 
-        glm::mat4* modelMatrices = new glm::mat4[numBoxes];
-        //fastBoxVAOs = new unsigned int[numBoxes];
-        
+       
+        //generate fastBox VAO
         glGenVertexArrays(1, &fastBoxVAO);
-        
+        glBindVertexArray(fastBoxVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(boxVertices), boxVertices, GL_STATIC_DRAW);
+
+        // position attribute
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        // texture coord attribute
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+
+        glBindVertexArray(0);
+
+        //transform positions into model transformation matrices
+        glm::mat4* modelMatrices = new glm::mat4[numBoxes];
         for (unsigned int i = 0; i < numBoxes; i++) {
-            glBindVertexArray(fastBoxVAO);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(boxVertices), boxVertices, GL_STATIC_DRAW);
-
-            // position attribute
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-            // texture coord attribute
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-            glEnableVertexAttribArray(1);
-           
-            glBindVertexArray(0);
-            
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, pos[i]);
             modelMatrices[i] = glm::scale(model, dimensions);
         }
 
-        
+        //buffer the data
         glGenBuffers(1, &fastBoxBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, fastBoxBuffer);
-        glBufferData(GL_ARRAY_BUFFER, numBoxes * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
 
+        float start = glfwGetTime();
+        glBufferData(GL_ARRAY_BUFFER, numBoxes * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
+        float end = glfwGetTime();
 
         // set attribute pointers for matrix (4 times vec4)
         glBindVertexArray(fastBoxVAO);
@@ -632,14 +634,45 @@ public:
         glVertexAttribDivisor(6, 1);
 
         glBindVertexArray(0);
-        float end = glfwGetTime();
+        
 
-        std::cout << end - start << std::endl;
+        std::cout << "Buffer Time on INIT" << end - start << std::endl;
     }
 
 
-    void modifyDrawBoxFastBuffer() {
+    void modifyDrawBoxFastBuffer(glm::vec3* pos, glm::vec3 dimensions, int numBoxes) {
+        glm::mat4* modelMatrices = new glm::mat4[numBoxes];
+        for (unsigned int i = 0; i < numBoxes; i++) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, pos[i]);
+            modelMatrices[i] = glm::scale(model, dimensions);
+        }
 
+        glGenBuffers(1, &fastBoxBuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, fastBoxBuffer);
+
+        float start = glfwGetTime();
+        glBufferData(GL_ARRAY_BUFFER, numBoxes * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
+        float end = glfwGetTime();
+
+        glBindVertexArray(fastBoxVAO);
+
+        std::size_t vec4Size = sizeof(glm::vec4);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)0);
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(1 * vec4Size));
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(2 * vec4Size));
+        glEnableVertexAttribArray(6);
+        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(3 * vec4Size));
+
+        glVertexAttribDivisor(3, 1);
+        glVertexAttribDivisor(4, 1);
+        glVertexAttribDivisor(5, 1);
+        glVertexAttribDivisor(6, 1);
+
+        glBindVertexArray(0);
     }
 
     void drawFastBox(int numBoxes, int textureEnum) {
@@ -655,6 +688,7 @@ public:
 
             glBindVertexArray(fastBoxVAO);
             glDrawArraysInstanced(GL_TRIANGLES, 0, 36, numBoxes);
+            //glDrawArraysInstanced(GL_TRIANGLES, 0, 36, 100);
             glBindVertexArray(0);
         }
         else {

@@ -73,7 +73,7 @@ public:
 
 class Chunk {
 public:
-	static const int chunkSize = 40;
+	static const int chunkSize = 16;
 	static enum FaceT {FRONT, BACK, LEFT, RIGHT, BOTTOM, TOP}; //ORDER OF THIS ENUM MATTERS!!! RELATED TO THE INDEX OF FACES IN DRAW BOX FAST
 	//Faces guide
 	//0 -> front
@@ -83,7 +83,9 @@ public:
 	//4 -> bottom
 	//5 -> top
 
-	bool chunk[chunkSize][chunkSize][chunkSize];
+private: bool chunk[chunkSize][chunkSize][chunkSize];
+private: glm::vec3 blockPos[chunkSize*chunkSize*chunkSize];
+public:
 	glm::vec3 pos;
 
 	Chunk(glm::vec3 pos) {
@@ -92,14 +94,15 @@ public:
 			for (int j = 0; j < chunkSize; j++) {
 				for (int k = 0; k < chunkSize; k++) {
 					chunk[i][j][k] = true;
+					blockPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = { i, j, k };
 				}
 			}
 		}
 	}
 
-	void DrawChunk(Graphics* context, Block model) {
-		context->drawFastBox(Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize, CONTAINER);
-		return;
+	void Draw(Graphics* context, Block model) {
+		//context->drawFastBox(Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize, CONTAINER);
+		//return;
 
 		for (int i = 0; i < chunkSize; i++) {
 			for (int j = 0; j < chunkSize; j++) {
@@ -157,6 +160,32 @@ public:
 			}
 		}
 	}
+
+	void Edit(int x, int y, int z, bool isSet) {
+		this->chunk[x][y][z] = isSet;
+	}
+
+	//must be called for changes to the chunk to be applied
+	void ApplyEdits(Graphics * context) {
+		
+		for (int i = 0; i < chunkSize; i++) {
+			for (int j = 0; j < chunkSize; j++) {
+				for (int k = 0; k < chunkSize; k++) {
+					if (chunk[i][j][k]) {
+						blockPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = { i, j, k };
+					}
+					else {
+						blockPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = {};
+					}
+				}
+			}
+		}
+		context->modifyDrawBoxFastBuffer(blockPos, {1, 1, 1}, chunkSize*chunkSize*chunkSize);
+	}
+
+	void Init(Graphics * context) {
+		context->InitFastBoxDraw(blockPos, { 1, 1, 1 }, Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize);
+	}
 };
 
 //int mainFunction()
@@ -197,17 +226,21 @@ int main()
 		}
 	}
 	*/
+
 	glm::vec3 fastPos[Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize];
-	//init chunk for testing
+
+
+	////init chunk for testing
 	Chunk testChunk = Chunk({0, -5, -2});
+	//testChunk.Init(&context);
 	for (int i = 0; i < Chunk::chunkSize; i++) {
 		for (int j = 0; j < Chunk::chunkSize; j++) {
 			for (int k = 0; k < Chunk::chunkSize; k++) {
 				if (i == 8 && j == 8) {
-					testChunk.chunk[i][j][k] = false;
+					testChunk.Edit(i, j, k, false);
 				}
 				else if (k == 4 && j == 8) {
-					testChunk.chunk[i][j][k] = false;
+					testChunk.Edit(i, j, k, false);
 				}
 				else {
 					fastPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = {i, j, k};
@@ -244,8 +277,9 @@ int main()
 
 		//pick what things to draw
 		
-		testChunk.DrawChunk(&context, containerBlock);
-
+		//testChunk.Edit(0, 0, 0, false);
+		//testChunk.ApplyEdits(&context);
+		testChunk.Draw(&context, containerBlock);
 
 		//containerBlock.collisionCube.pos = { 0, 0, 0 };
 		//containerBlock.DrawBlock(&context);
