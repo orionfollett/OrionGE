@@ -6,4 +6,4 @@ glad
 glfw
 glm
 
-See leanopengl.com for details on installation and linking
+This project is built on Windows and is not cross platform.
