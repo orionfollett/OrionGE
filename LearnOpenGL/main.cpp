@@ -1,263 +1,44 @@
 #include "Graphics.h";
 #include "Physics.h";
+#include "Ray.h";
+#include "Block.h";
+#include "Chunk.h";
+#include "Array3D.h";
+
 
 void processInput(Graphics* context, float deltaTime);
 void moveCube(Graphics* context, float deltaTime, Cube * c);
-enum TextureT {CONTAINER, DIRT, DEFAULT, KATE, SPACE};
-
-
-class Ray {
-
-public: 
-	glm::vec3 start;
-	glm::vec3 end;
-
-	Ray(glm::vec3 start_pos, glm::vec3 end_pos, float scale = 2.0f) {
-		start = start_pos;
-		end = end_pos;
-	}
-
-	void DrawRay(Graphics* context, float scaleFactor = 2.0f) {
-		context->drawLine(
-			glm::vec3(start.x / scaleFactor, start.y / scaleFactor, start.z / scaleFactor),
-			glm::vec3(end.x / scaleFactor, end.y / scaleFactor, end.z / scaleFactor)
-		);
-	}
-
-
-};
-
-//pos is bottom back left
-class Block {
-
-public:
-	TextureT texture;
-	Cube collisionCube; //in grid coords
-	int width; //in grid coordinates
-
-	Block(TextureT tex, Cube colCube, int std_width = 1) {
-		texture = tex;
-		collisionCube = colCube;
-		width = std_width;
-	}
-
-	Block() {
-		texture = DEFAULT;
-		collisionCube = Cube();
-		width = 1;
-	}
-
-	//scale factor * world coord = grid coord
-	void DrawBlock(Graphics* context, float scaleFactor = 2.0f) {
-		float w = collisionCube.width / scaleFactor;
-
-		//slower one, not really slower at the moment
-		
-		context->drawBox(
-			glm::vec3(collisionCube.pos.x / scaleFactor, collisionCube.pos.y / scaleFactor, collisionCube.pos.z / scaleFactor),
-			glm::vec3(w, w, w),
-			0.0f,
-			glm::vec3(1.0f, 0.0f, 0.0f),
-			texture);
-	}
-
-	void DrawPartialBlock(Graphics* context, bool faces[6], float scaleFactor = 2.0f) {
-		float w = collisionCube.width / scaleFactor;
-		context->drawPartialBox(
-			glm::vec3(collisionCube.pos.x / scaleFactor, collisionCube.pos.y / scaleFactor, collisionCube.pos.z / scaleFactor),
-			glm::vec3(w, w, w),
-			texture,
-			faces);
-	}
-};
-
-class Chunk {
-public:
-	static const int chunkSize = 16;
-	static enum FaceT {FRONT, BACK, LEFT, RIGHT, BOTTOM, TOP}; //ORDER OF THIS ENUM MATTERS!!! RELATED TO THE INDEX OF FACES IN DRAW BOX FAST
-	//Faces guide
-	//0 -> front
-	//1 -> back
-	//2 -> left
-	//3 -> right
-	//4 -> bottom
-	//5 -> top
-
-private: bool chunk[chunkSize][chunkSize][chunkSize];
-private: glm::vec3 blockPos[chunkSize*chunkSize*chunkSize];
-public:
-	glm::vec3 pos;
-
-	Chunk(glm::vec3 pos) {
-		this->pos = pos;
-		for (int i = 0; i < chunkSize; i++) {
-			for (int j = 0; j < chunkSize; j++) {
-				for (int k = 0; k < chunkSize; k++) {
-					chunk[i][j][k] = true;
-					blockPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = { i, j, k };
-				}
-			}
-		}
-	}
-
-	void Draw(Graphics* context, Block model) {
-		//context->drawFastBox(Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize, CONTAINER);
-		//return;
-
-		for (int i = 0; i < chunkSize; i++) {
-			for (int j = 0; j < chunkSize; j++) {
-				for (int k = 0; k < chunkSize; k++) {
-					if (chunk[i][j][k]) {
-						bool faces[6] = { false, false, false, false, false, false };
-
-						//LEFT AND RIGHT
-						if (i == 0) {
-							faces[LEFT] = true;
-							faces[RIGHT] = !chunk[i + 1][j][k];
-						}
-						else if(i == chunkSize - 1) {
-							faces[RIGHT] = true;
-							faces[LEFT] = !chunk[i - 1][j][k];
-						}
-						else {
-							faces[LEFT] = !chunk[i - 1][j][k];
-							faces[RIGHT] = !chunk[i + 1][j][k];
-						}
-
-						//TOP AND BOTTOM
-						if (j == 0) {
-							faces[TOP] = !chunk[i][j + 1][k];
-							faces[BOTTOM] = true;
-						}
-						else if (j == chunkSize - 1) {
-							faces[TOP] = true;
-							faces[BOTTOM] = !chunk[i][j - 1][k];
-						}
-						else {
-							faces[TOP] = !chunk[i][j + 1][k];
-							faces[BOTTOM] = !chunk[i][j - 1][k];
-						}
-
-						
-						//FRONT AND BACK
-						if (k == 0) {
-							faces[FRONT] = true;
-							faces[BACK] = !chunk[i][j][k + 1];
-						}
-						else if (k == chunkSize - 1) {
-							faces[FRONT] = !chunk[i][j][k - 1];
-							faces[BACK] = true;
-						}
-						else {
-							faces[FRONT] = !chunk[i][j][k - 1];
-							faces[BACK] = !chunk[i][j][k + 1];
-						}
-
-						model.collisionCube.pos = glm::vec3(i, j, k) + this->pos;
-						model.DrawPartialBlock(context, faces);
-					}
-				}
-			}
-		}
-	}
-
-	void Edit(int x, int y, int z, bool isSet) {
-		this->chunk[x][y][z] = isSet;
-	}
-
-	//must be called for changes to the chunk to be applied
-	void ApplyEdits(Graphics * context) {
-		
-		for (int i = 0; i < chunkSize; i++) {
-			for (int j = 0; j < chunkSize; j++) {
-				for (int k = 0; k < chunkSize; k++) {
-					if (chunk[i][j][k]) {
-						blockPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = { i, j, k };
-					}
-					else {
-						blockPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = {};
-					}
-				}
-			}
-		}
-		context->modifyDrawBoxFastBuffer(blockPos, {1, 1, 1}, chunkSize*chunkSize*chunkSize);
-	}
-
-	void Init(Graphics * context) {
-		context->InitFastBoxDraw(blockPos, { 1, 1, 1 }, Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize);
-	}
-};
 
 //int mainFunction()
 int main() 
 {
 	Graphics context = Graphics(800, 800);
-
+	context.camera.Position = {0, 40, 0};
+	
 	context.loadTexture(CONTAINER, "./assets/container.jpg", false);
 	context.loadTexture(DIRT, "./assets/dirt.png", false);
 	context.loadTexture(DEFAULT, "./assets/default.png", false);
 	context.loadTexture(KATE, "./assets/kate.png", true);
 	context.loadTexture(SPACE, "./assets/space.png", true);
 	
-	//init physics objects
+	std::srand(1);
+	//init chunk for testing
 	Cube c = Cube();
 	Block containerBlock = Block(CONTAINER, c);
-	c.pos = { 1.7, 4, 2.2 };
-	Block testBlock = Block(DEFAULT, c);
+	Chunk testChunk2 = Chunk(&context, { 0, 16, 0 });
 
-	Ray r = Ray({ 0, 0, 0 }, {1, 1, 1});
-
-	/*
-	//init world
-	const int worldSize = 16;
+	Chunk testChunk = Chunk(&context, {0, 0, 0});
+	testChunk.GenerateCave();
+	testChunk.ApplyEdits(&context);
 	
-	bool world[worldSize][worldSize][worldSize];
-
-	for (int i = 0; i < worldSize; i++) {
-		for (int j = 0; j < worldSize; j++) {
-			for (int k = 0; k < worldSize; k++) {
-				//if (i % 3 ==0 && k % 3== 0 && j % 3 == 0) {
-					world[i][j][k] = true;
-				//}
-				//else {
-					//world[i][j][k] = false;
-				//}
-			}
-		}
-	}
-	*/
-
-	glm::vec3 fastPos[Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize];
-
-
-	////init chunk for testing
-	Chunk testChunk = Chunk({0, -5, -2});
-	//testChunk.Init(&context);
-	for (int i = 0; i < Chunk::chunkSize; i++) {
-		for (int j = 0; j < Chunk::chunkSize; j++) {
-			for (int k = 0; k < Chunk::chunkSize; k++) {
-				if (i == 8 && j == 8) {
-					testChunk.Edit(i, j, k, false);
-				}
-				else if (k == 4 && j == 8) {
-					testChunk.Edit(i, j, k, false);
-				}
-				else {
-					fastPos[i + j * Chunk::chunkSize + k * Chunk::chunkSize * Chunk::chunkSize] = {i, j, k};
-				}
-			}
-		}
-	}
-
-	context.InitFastBoxDraw(fastPos, {1, 1, 1}, Chunk::chunkSize * Chunk::chunkSize * Chunk::chunkSize);
-	//delete fastPos;
+	//testChunk.GenerateCave();
+	//testChunk.ApplyEdits(&context);
 
 	// timing
 	float deltaTime = 0.0f;	// time between current frame and last frame
 	float lastFrame = 0.0f;
-	
-	while (!context.windowShouldClose()) {
 
+	while (!context.windowShouldClose()) {
 		//calculate frame time and such
 		float currentFrame = context.getTime();
 		deltaTime = currentFrame - lastFrame;
@@ -265,25 +46,15 @@ int main()
 
 		//handle input
 		processInput(&context, deltaTime);
-		//moveCube(&context, deltaTime, &testBlock.collisionCube);
-
-		//do physics things
-		//testBlock.collisionCube.applyVelocity(deltaTime);
-		//Grid::CubeStayInGrid(&testBlock.collisionCube, worldSize);
 
 		//render things into memory
 		context.BeginRender();
 		context.drawBackground(0.1f, 0.3f, 0.2f, 1.0f);
 
 		//pick what things to draw
-		
-		//testChunk.Edit(0, 0, 0, false);
-		//testChunk.ApplyEdits(&context);
 		testChunk.Draw(&context, containerBlock);
-
-		//containerBlock.collisionCube.pos = { 0, 0, 0 };
-		//containerBlock.DrawBlock(&context);
-
+		testChunk2.Draw(&context, containerBlock);
+		
 		//get input and draw buffers to the screen
 		context.GetInput();
 		context.Display();
@@ -291,6 +62,7 @@ int main()
 	}
 
 	context.cleanUp();
+	testChunk.Delete();
 	return 0;
 }
 
@@ -350,6 +122,14 @@ void processInput(Graphics* context, float deltaTime) {
 	}
 }
 
+
+/*
+//init physics objects
+
+c.pos = { 1.7, 4, 2.2 };
+Block testBlock = Block(DEFAULT, c);
+Ray r = Ray({ 0, 0, 0 }, { 1, 1, 1 });
+*/
 
 /*
 Cube c2 = Cube({ 2, 2, 2 }, {0, 0, 0}, 1);

@@ -20,6 +20,7 @@ Started: 9/3/2022
 #include <vector>
 #include <unordered_map>
 #include <string>
+#include <vector>
 
 //things this library will handle
 /*
@@ -196,9 +197,10 @@ private:
     std::shared_ptr<Shader> ourShader;
     std::shared_ptr<Shader> instancedShader;
 
-    unsigned int VBO, rectVAO, boxVAO, lineVAO, fastBoxVAO, fastBoxBuffer;
+    unsigned int VBO, rectVAO, boxVAO, lineVAO;
     unsigned int facesVAO[6];
-    unsigned int * fastBoxVAOs;
+    std::unordered_map<unsigned int, unsigned int> fbVAOs; //map of {VAO, VBO}
+    
 
     //texture map, maps user created enum to texture id
     std::unordered_map<int, unsigned int> textureMap;
@@ -340,6 +342,14 @@ public:
         glDeleteBuffers(1, &VBO);
         glDeleteVertexArrays(1, &boxVAO);
         glDeleteVertexArrays(1, &lineVAO);
+
+        glDeleteVertexArrays(6, &facesVAO[0]);
+
+        for (auto & i : fbVAOs) {
+            glDeleteBuffers(1, &i.second);
+            glDeleteVertexArrays(1, &i.first);
+        }
+        
         glfwTerminate();
     }
 
@@ -576,15 +586,15 @@ public:
     //*pos -> array of positions for the boxes
     //numBoxes -> length of pos array
     //called once before program runs
-    void InitFastBoxDraw(glm::vec3* pos, glm::vec3 dimensions, int numBoxes) {
-       
-        if (numBoxes <= 0) {
+    void InitChunkDraw(std::vector<glm::vec3> pos, glm::vec3 blockDimensions, unsigned int * chunkId) {
+        if (pos.size() <= 0) {
             return;
         }
-
        
         //generate fastBox VAO
+        unsigned int fastBoxVAO;
         glGenVertexArrays(1, &fastBoxVAO);
+
         glBindVertexArray(fastBoxVAO);
 
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -600,19 +610,25 @@ public:
         glBindVertexArray(0);
 
         //transform positions into model transformation matrices
-        glm::mat4* modelMatrices = new glm::mat4[numBoxes];
-        for (unsigned int i = 0; i < numBoxes; i++) {
+        glm::mat4* modelMatrices = new glm::mat4[pos.size()];
+        for (unsigned int i = 0; i < pos.size(); i++) {
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, pos[i]);
-            modelMatrices[i] = glm::scale(model, dimensions);
+            modelMatrices[i] = glm::scale(model, blockDimensions);
         }
 
         //buffer the data
-        glGenBuffers(1, &fastBoxBuffer);
-        glBindBuffer(GL_ARRAY_BUFFER, fastBoxBuffer);
+        //glGenBuffers(1, &fastBoxBuffer);
+        //glBindBuffer(GL_ARRAY_BUFFER, fastBoxBuffer);
+        unsigned int buffer;
+        glGenBuffers(1, &buffer);
+        glBindBuffer(GL_ARRAY_BUFFER, buffer);
+
+        *chunkId = fastBoxVAO;
+        fbVAOs.insert({ fastBoxVAO, buffer});
 
         float start = glfwGetTime();
-        glBufferData(GL_ARRAY_BUFFER, numBoxes * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, pos.size() * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
         float end = glfwGetTime();
 
         // set attribute pointers for matrix (4 times vec4)
@@ -640,42 +656,23 @@ public:
     }
 
 
-    void modifyDrawBoxFastBuffer(glm::vec3* pos, glm::vec3 dimensions, int numBoxes) {
-        glm::mat4* modelMatrices = new glm::mat4[numBoxes];
-        for (unsigned int i = 0; i < numBoxes; i++) {
+    void ModifyChunkBuffer(std::vector<glm::vec3> pos, glm::vec3 dimensions, unsigned int chunkId) {
+        glm::mat4 * modelMatrices = new glm::mat4[pos.size()];
+
+        for (unsigned int i = 0; i < pos.size(); i++) {
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, pos[i]);
             modelMatrices[i] = glm::scale(model, dimensions);
         }
 
-        glGenBuffers(1, &fastBoxBuffer);
-        glBindBuffer(GL_ARRAY_BUFFER, fastBoxBuffer);
-
-        float start = glfwGetTime();
-        glBufferData(GL_ARRAY_BUFFER, numBoxes * sizeof(glm::mat4), &modelMatrices[0], GL_STATIC_DRAW);
-        float end = glfwGetTime();
-
-        glBindVertexArray(fastBoxVAO);
-
-        std::size_t vec4Size = sizeof(glm::vec4);
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)0);
-        glEnableVertexAttribArray(4);
-        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(1 * vec4Size));
-        glEnableVertexAttribArray(5);
-        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(2 * vec4Size));
-        glEnableVertexAttribArray(6);
-        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, 4 * vec4Size, (void*)(3 * vec4Size));
-
-        glVertexAttribDivisor(3, 1);
-        glVertexAttribDivisor(4, 1);
-        glVertexAttribDivisor(5, 1);
-        glVertexAttribDivisor(6, 1);
-
-        glBindVertexArray(0);
+        //glBindBuffer(GL_ARRAY_BUFFER, fastBoxBuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, fbVAOs.at(chunkId));
+        glBufferSubData(GL_ARRAY_BUFFER, 0, pos.size()  * sizeof(glm::mat4), &modelMatrices[0]);
+        
+        delete modelMatrices;
     }
 
-    void drawFastBox(int numBoxes, int textureEnum) {
+    void DrawChunk(unsigned int chunkId, int numBoxes, int textureEnum) {
         instancedShader->use();
         if (textureMap.find(textureEnum) != textureMap.end()) {
             instancedShader->use();
@@ -686,7 +683,7 @@ public:
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texId);
 
-            glBindVertexArray(fastBoxVAO);
+            glBindVertexArray(chunkId);
             glDrawArraysInstanced(GL_TRIANGLES, 0, 36, numBoxes);
             //glDrawArraysInstanced(GL_TRIANGLES, 0, 36, 100);
             glBindVertexArray(0);
